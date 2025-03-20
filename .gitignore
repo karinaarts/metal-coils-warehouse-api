@@ -1,0 +1,14 @@
+# Python
+__pycache__
+
+# Poetry
+poetry.lock
+
+# Linters
+.mypy_cache
+.ruff_cache
+
+# Environment
+.env
+.venv
+
