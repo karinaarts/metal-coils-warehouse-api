@@ -10,4 +10,4 @@ async def setup_database():
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
         await connection.run_sync(Base.metadata.create_all)
-    return {"success": True, "message": "База данных успешно создана"}
+    return {"success": True, "message": "Database successfully created"}

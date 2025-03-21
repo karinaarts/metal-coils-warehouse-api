@@ -13,12 +13,6 @@ class CoilSchema(CoilAddSchema):
     creation_date: datetime
     deletion_date: datetime | None
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.strftime("%Y-%m-%d") if v else None
-        }
-
 
 class CoilFilterSchema(BaseModel):
     id_min: Optional[int] = Field(None, gt=0)

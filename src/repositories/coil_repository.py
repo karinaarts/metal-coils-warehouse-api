@@ -15,8 +15,11 @@ class CoilRepository(BaseRepository[CoilModel]):
     async def delete(self, session: SessionDep, id: int) -> CoilModel:
         model = await session.get(self.model, id)
         if not model:
-            raise HTTPException(status_code=404, detail="Катушка не найдена")
-            
+            raise HTTPException(status_code=404, detail="Coil is not found")
+
+        if model.deletion_date:
+            raise HTTPException(status_code=400, detail="Coil already deleted")
+
         model.deletion_date = datetime.now(timezone.utc)
         await session.commit()
         return model
@@ -122,14 +125,15 @@ class CoilRepository(BaseRepository[CoilModel]):
     ) -> Select:
         start_date = self._normalize_datetime(start_date)
         end_date = self._normalize_datetime(end_date)
-        
-        return query.where(
-            (self.model.deletion_date.is_(None)) | 
-            (self.model.deletion_date >= start_date)
-        ).where(
-            self.model.creation_date <= end_date
+
+        query = query.where(
+            (self.model.deletion_date.is_(None))
+            | (self.model.deletion_date >= start_date)
         )
-    
+        query = query.where(self.model.creation_date <= end_date)
+
+        return query
+
     def _normalize_datetime(self, dt: datetime) -> datetime:
         return dt.replace(tzinfo=None)
 
@@ -166,7 +170,7 @@ class CoilRepository(BaseRepository[CoilModel]):
 
         result = await session.execute(query)
         row = result.fetchone()
-        
+
         if not row:
             return {
                 "avg_length": 0,
@@ -177,7 +181,7 @@ class CoilRepository(BaseRepository[CoilModel]):
                 "min_weight": 0,
                 "total_weight": 0,
             }
-        
+
         return dict(row._mapping)
 
     async def _calculate_storage_time_statistics(
@@ -216,22 +220,19 @@ class CoilRepository(BaseRepository[CoilModel]):
         start_date: datetime,
         end_date: datetime,
     ) -> Dict[str, Any]:
-        extremes = {
+        extremes: Dict[str, Dict[str, Any]] = {
             "min_count": {"value": float("inf"), "day": None},
             "max_count": {"value": 0, "day": None},
             "min_weight": {"value": float("inf"), "day": None},
             "max_weight": {"value": 0, "day": None},
         }
 
-        date_range = [
-            start_date + timedelta(days=i)
-            for i in range((end_date - start_date).days + 1)
-        ]
-        
-        for current_date in date_range:
+        current_date = start_date
+        while current_date <= end_date:
             date = current_date.date()
             day_stats = await self._get_single_day_statistics(session, date)
             self._update_extremes(extremes, date, day_stats)
+            current_date += timedelta(days=1)
 
         return {
             "min_coils_date": extremes["min_count"]["day"],
@@ -250,21 +251,20 @@ class CoilRepository(BaseRepository[CoilModel]):
         day_start = datetime.combine(date, datetime.min.time())
         day_end = datetime.combine(date, datetime.max.time())
 
-        query = select(
-            func.count().label("count"),
-            func.sum(self.model.weight).label("total_weight")
-        ).where(
-            (self.model.creation_date <= day_end) &
-            ((self.model.deletion_date.is_(None)) | 
-             (self.model.deletion_date >= day_start))
+        day_query = select(self.model).where(
+            (self.model.creation_date <= day_end)
+            & (
+                (self.model.deletion_date.is_(None))
+                | (self.model.deletion_date >= day_start)
+            )
         )
 
-        result = await session.execute(query)
-        stats = result.fetchone()
-        
+        result = await session.execute(day_query)
+        coils_for_day = list(result.scalars().all())
+
         return {
-            "count": stats.count or 0,
-            "total_weight": stats.total_weight or 0,
+            "count": len(coils_for_day),
+            "total_weight": sum(coil.weight for coil in coils_for_day),
         }
 
     def _update_extremes(
@@ -273,15 +273,21 @@ class CoilRepository(BaseRepository[CoilModel]):
         date: date,
         day_stats: Dict[str, float],
     ) -> None:
-        metrics = [
-        ("min_count", "count", lambda x, y: x < y),
-        ("max_count", "count", lambda x, y: x > y),
-        ("min_weight", "total_weight", lambda x, y: x < y),
-        ("max_weight", "total_weight", lambda x, y: x > y),
-        ]
+        count = day_stats["count"]
+        weight = day_stats["total_weight"]
 
-        for extreme_key, stat_key, comparison in metrics:
-            value = day_stats[stat_key]
-            if comparison(value, extremes[extreme_key]["value"]):
-                extremes[extreme_key]["value"] = value
-                extremes[extreme_key]["day"] = date
+        if count < extremes["min_count"]["value"]:
+            extremes["min_count"]["value"] = count
+            extremes["min_count"]["day"] = date
+
+        if count > extremes["max_count"]["value"]:
+            extremes["max_count"]["value"] = count
+            extremes["max_count"]["day"] = date
+
+        if weight < extremes["min_weight"]["value"]:
+            extremes["min_weight"]["value"] = weight
+            extremes["min_weight"]["day"] = date
+
+        if weight > extremes["max_weight"]["value"]:
+            extremes["max_weight"]["value"] = weight
+            extremes["max_weight"]["day"] = date

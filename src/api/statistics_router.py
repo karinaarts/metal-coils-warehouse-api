@@ -16,17 +16,11 @@ service = StatisticsService()
 async def get_statistics_period(
     start_date: Optional[datetime] = Query(
         default=datetime.now() - timedelta(days=30),
-        description=(
-            "Дата начала периода в формате timestamp "
-            "(по умолчанию: 30 дней назад)"
-        ),
+        description=("Start date in timestamp format (default: 30 days ago)"),
     ),
     end_date: Optional[datetime] = Query(
         default=datetime.now(),
-        description=(
-            "Дата окончания периода в формате timestamp "
-            "(по умолчанию: текущая дата)"
-        ),
+        description=("End date in timestamp format (default: current date)"),
     ),
 ) -> StatisticsPeriodSchema:
     return StatisticsPeriodSchema(start_date=start_date, end_date=end_date)
