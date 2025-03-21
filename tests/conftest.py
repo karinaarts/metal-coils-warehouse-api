@@ -1,8 +1,13 @@
-import pytest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
-from datetime import datetime, timedelta
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.database import Base, engine
+from src.main import app as main_app
 from src.models.coil_model import CoilModel
 from src.repositories.coil_repository import CoilRepository
 from src.services.coil_service import CoilService
@@ -27,7 +32,7 @@ def sample_coil_data():
 
 @pytest.fixture
 def sample_coil_model():
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     return CoilModel(
         id=1, length=100.0, weight=500.0, creation_date=now, deletion_date=None
     )
@@ -35,7 +40,7 @@ def sample_coil_model():
 
 @pytest.fixture
 def deleted_coil_model():
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     return CoilModel(
         id=2,
         length=150.0,
@@ -88,3 +93,23 @@ def sample_statistics_data():
         "max_weight_date": datetime.now().date(),
         "max_weight_total": 8000.0,
     }
+
+
+async def create_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def drop_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture()
+async def client():
+    await drop_tables()
+    await create_tables()
+    async with AsyncClient(
+        transport=ASGITransport(main_app), base_url="http://test"
+    ) as test_client:
+        yield test_client

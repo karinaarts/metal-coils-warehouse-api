@@ -1,10 +1,11 @@
+from fastapi import HTTPException
+
 from src.database import SessionDep
 from src.schemas.statistics_schema import (
     StatisticsPeriodSchema,
     StatisticsResponse,
 )
 from src.repositories.coil_repository import CoilRepository
-from fastapi import HTTPException
 
 
 class StatisticsService:

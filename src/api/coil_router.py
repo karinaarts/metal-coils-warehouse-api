@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
 from typing import List
+
+from fastapi import APIRouter, Depends
 
 from src.services.coil_service import CoilService
 from src.schemas.coil_schema import CoilAddSchema, CoilSchema, CoilFilterSchema

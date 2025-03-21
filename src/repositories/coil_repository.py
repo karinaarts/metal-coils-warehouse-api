@@ -1,11 +1,13 @@
-from datetime import datetime, timezone, date, timedelta
-from typing import List, Any, Dict, Optional
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.sql.expression import Select
+
+from src.database import SessionDep
 from src.models.coil_model import CoilModel
 from src.repositories.base import BaseRepository
-from src.database import SessionDep
 
 
 class CoilRepository(BaseRepository[CoilModel]):
@@ -158,15 +160,16 @@ class CoilRepository(BaseRepository[CoilModel]):
     async def _calculate_size_statistics(
         self, session: SessionDep, query: Select
     ) -> Dict[str, float]:
+        subquery = query.subquery()
         query = select(
-            func.avg(self.model.length).label("avg_length"),
-            func.avg(self.model.weight).label("avg_weight"),
-            func.max(self.model.length).label("max_length"),
-            func.max(self.model.weight).label("max_weight"),
-            func.min(self.model.length).label("min_length"),
-            func.min(self.model.weight).label("min_weight"),
-            func.sum(self.model.weight).label("total_weight"),
-        ).select_from(query.subquery())
+            func.avg(subquery.c.length).label("avg_length"),
+            func.avg(subquery.c.weight).label("avg_weight"),
+            func.max(subquery.c.length).label("max_length"),
+            func.max(subquery.c.weight).label("max_weight"),
+            func.min(subquery.c.length).label("min_length"),
+            func.min(subquery.c.weight).label("min_weight"),
+            func.sum(subquery.c.weight).label("total_weight"),
+        ).select_from(subquery)
 
         result = await session.execute(query)
         row = result.fetchone()
