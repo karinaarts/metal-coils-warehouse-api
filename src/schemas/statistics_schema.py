@@ -4,8 +4,8 @@ from typing import Optional
 
 
 class StatisticsPeriodSchema(BaseModel):
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
+    start_date: datetime
+    end_date: datetime
 
 
 class StatisticsResponse(BaseModel):

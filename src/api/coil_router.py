@@ -14,11 +14,6 @@ async def add_coil(data: CoilAddSchema, session: SessionDep):
     return await service.create(session, data)
 
 
-@router.get("/", response_model=List[CoilSchema])
-async def get_coils(session: SessionDep):
-    return await service.get_all(session)
-
-
 @router.delete("/{id}", response_model=CoilSchema)
 async def delete_coil(id: int, session: SessionDep):
     return await service.delete(session, id)
@@ -29,3 +24,8 @@ async def get_filtered_coils(
     session: SessionDep, filter_params: CoilFilterSchema = Depends()
 ):
     return await service.get_filtered(session, filter_params)
+
+
+@router.get("/", response_model=List[CoilSchema])
+async def get_coils(session: SessionDep):
+    return await service.get_all(session)
